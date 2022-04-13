@@ -453,6 +453,23 @@ TEST(correctness, copy_throw) {
   EXPECT_THROW({ vector<element<size_t>> b(a); }, std::runtime_error);
 }
 
+TEST(correctness, assign_throw) {
+  {
+    vector<element<size_t>> a;
+    a.reserve(10);
+    size_t n = a.capacity();
+    for (size_t i = 0; i != n; ++i)
+      a.push_back(i);
+    vector<element<size_t>> b;
+    b.push_back(0);
+    element<size_t>::set_throw_countdown(n - 1);
+    EXPECT_THROW({ b = a; }, std::runtime_error);
+    EXPECT_EQ(1, b.capacity());
+  }
+  element<size_t>::expect_no_instances();
+}
+
+
 TEST(correctness, iter_types) {
   using el_t = element<size_t>;
   using vec_t = vector<el_t>;
