@@ -465,6 +465,7 @@ TEST(correctness, assign_throw) {
     element<size_t>::set_throw_countdown(n - 1);
     EXPECT_THROW({ b = a; }, std::runtime_error);
     EXPECT_EQ(1, b.capacity());
+    EXPECT_EQ(10, a.capacity());
   }
   element<size_t>::expect_no_instances();
 }
