@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <unordered_set>
+
 template <typename T>
 struct element {
   element() {
@@ -36,8 +38,7 @@ struct element {
 
   static void expect_no_instances() {
     if (!instances().empty()) {
-      FAIL() << "not all instances are destroyed";
-      instances().clear();
+      FAIL() << "Not all instances are destroyed";
     }
   }
 
@@ -57,7 +58,7 @@ private:
   void add_instance() {
     auto p = instances().insert(this);
     if (!p.second) {
-      FAIL() << "a new object is created at the address " << static_cast<void*>(this)
+      FAIL() << "A new object is created at the address " << static_cast<void*>(this)
              << " while the previous object at this address was not destroyed";
     }
   }
@@ -65,7 +66,7 @@ private:
   void delete_instance() {
     size_t erased = instances().erase(this);
     if (erased != 1) {
-      FAIL() << "attempt of destroying non-existing object at address " << static_cast<void*>(this);
+      FAIL() << "Attempt of destroying non-existing object at address " << static_cast<void*>(this);
     }
   }
 
@@ -73,7 +74,7 @@ private:
     const std::unordered_set<const element*>& inst = instances();
     bool exists = inst.find(this) != inst.end();
     if (!exists) {
-      FAIL() << "accessing an non-existsing object at address " << static_cast<const void*>(this);
+      FAIL() << "Accessing an non-existsing object at address " << static_cast<const void*>(this);
     }
   }
 
@@ -84,7 +85,11 @@ private:
         throw std::runtime_error("copy failed");
       }
     }
+    ++copy_counter;
   }
+
+public:
+  inline static size_t copy_counter = 0;
 
 private:
   T val;

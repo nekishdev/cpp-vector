@@ -3,9 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include <unordered_set>
-
-template struct vector<int>;
+template class vector<int>;
 
 template <typename T>
 const T& as_const(T& obj) {
@@ -27,6 +25,8 @@ TEST(correctness, push_back) {
       a.push_back(i);
     }
 
+    EXPECT_EQ(N, a.size());
+
     for (size_t i = 0; i != N; ++i) {
       EXPECT_EQ(i, a[i]);
     }
@@ -44,6 +44,8 @@ TEST(correctness, push_back_from_self) {
       a.push_back(a[0]);
     }
 
+    EXPECT_EQ(N + 1, a.size());
+
     for (size_t i = 0; i != a.size(); ++i) {
       EXPECT_EQ(42, a[i]);
     }
@@ -52,7 +54,25 @@ TEST(correctness, push_back_from_self) {
   element<size_t>::expect_no_instances();
 }
 
-TEST(correctness, subscription) {
+TEST(correctness, push_back_reallocation) {
+  const size_t N = 500;
+  {
+    vector<element<size_t>> a;
+    a.reserve(N);
+    for (size_t i = 0; i != N; ++i) {
+      a.push_back(i);
+    }
+
+    size_t copies = element<size_t>::copy_counter;
+    a.push_back(N);
+    size_t new_copies = element<size_t>::copy_counter - copies;
+    EXPECT_EQ(N + 1, new_copies);
+  }
+
+  element<size_t>::expect_no_instances();
+}
+
+TEST(correctness, subscripting) {
   const size_t N = 500;
   vector<size_t> a;
   for (size_t i = 0; i != N; ++i) {
