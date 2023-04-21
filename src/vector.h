@@ -17,19 +17,19 @@ public:
   using const_iterator = const_pointer;
 
 public:
-  vector();                                                  // O(1) nothrow
+  vector() noexcept;                                         // O(1) nothrow
   vector(const vector& other);                               // O(N) strong
   vector& operator=(const vector& other);                    // O(N) strong
 
-  ~vector();                                                 // O(N) nothrow
+  ~vector() noexcept;                                        // O(N) nothrow
 
   reference operator[](size_t index);                        // O(1) nothrow
   const_reference operator[](size_t index) const;            // O(1) nothrow
 
-  pointer data();                                            // O(1) nothrow
-  const_pointer data() const;                                // O(1) nothrow
+  pointer data() noexcept;                                   // O(1) nothrow
+  const_pointer data() const noexcept;                       // O(1) nothrow
 
-  size_t size() const;                                       // O(1) nothrow
+  size_t size() const noexcept;                              // O(1) nothrow
 
   reference front();                                         // O(1) nothrow
   const_reference front() const;                             // O(1) nothrow
@@ -41,21 +41,21 @@ public:
 
   void pop_back();                                           // O(1) nothrow
 
-  bool empty() const;                                        // O(1) nothrow
+  bool empty() const noexcept;                               // O(1) nothrow
 
-  size_t capacity() const;                                   // O(1) nothrow
+  size_t capacity() const noexcept;                          // O(1) nothrow
   void reserve(size_t new_capacity);                         // O(N) strong
   void shrink_to_fit();                                      // O(N) strong
 
-  void clear();                                              // O(N) nothrow
+  void clear() noexcept;                                     // O(N) nothrow
 
-  void swap(vector& other);                                  // O(1) nothrow
+  void swap(vector& other) noexcept;                         // O(1) nothrow
 
-  iterator begin();                                          // O(1) nothrow
-  iterator end();                                            // O(1) nothrow
+  iterator begin() noexcept;                                 // O(1) nothrow
+  iterator end() noexcept;                                   // O(1) nothrow
 
-  const_iterator begin() const;                              // O(1) nothrow
-  const_iterator end() const;                                // O(1) nothrow
+  const_iterator begin() const noexcept;                     // O(1) nothrow
+  const_iterator end() const noexcept;                       // O(1) nothrow
 
   iterator insert(const_iterator pos, const_iterator value); // O(N) strong
 
