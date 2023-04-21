@@ -13,8 +13,8 @@ struct vector {
 
   ~vector();                                                 // O(N) nothrow
 
-  T& operator[](size_t i);                                   // O(1) nothrow
-  const T& operator[](size_t i) const;                       // O(1) nothrow
+  T& operator[](size_t index);                               // O(1) nothrow
+  const T& operator[](size_t index) const;                   // O(1) nothrow
 
   T* data();                                                 // O(1) nothrow
   const T* data() const;                                     // O(1) nothrow
