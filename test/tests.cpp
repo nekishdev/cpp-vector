@@ -1,6 +1,6 @@
+#include "vector.h"
 #include "element.h"
 #include "gtest/gtest.h"
-#include "vector.h"
 
 #include <unordered_set>
 
