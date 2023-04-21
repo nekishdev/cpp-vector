@@ -49,9 +49,4 @@ struct vector {
   iterator erase(const_iterator pos);                        // O(N) nothrow(swap)
 
   iterator erase(const_iterator first, const_iterator last); // O(N) nothrow(swap)
-
-private:
-  T* data_;
-  size_t size_;
-  size_t capacity_;
 };
