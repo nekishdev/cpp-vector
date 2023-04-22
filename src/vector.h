@@ -57,7 +57,7 @@ public:
   const_iterator begin() const noexcept;                     // O(1) nothrow
   const_iterator end() const noexcept;                       // O(1) nothrow
 
-  iterator insert(const_iterator pos, const_iterator value); // O(N) strong
+  iterator insert(const_iterator pos, const T& value);       // O(N) strong
 
   iterator erase(const_iterator pos);                        // O(N) nothrow(swap)
 
