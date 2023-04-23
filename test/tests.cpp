@@ -260,7 +260,8 @@ TEST(correctness, insert_begin) {
   vector<element<size_t>> a;
 
   for (size_t i = 0; i != N; ++i) {
-    a.insert(a.begin(), i);
+    auto it = a.insert(a.begin(), i);
+    EXPECT_EQ(a.begin(), it);
   }
 
   for (size_t i = 0; i != N; ++i) {
@@ -282,12 +283,15 @@ TEST(correctness, insert_end) {
 
     for (size_t i = 0; i != N; ++i) {
       EXPECT_EQ(N + i, a.size());
-      a.insert(a.end(), 4 * i + 1);
-      EXPECT_EQ(4 * i + 1, a.back());
+      auto it = a.insert(a.end(), 4 * i + 1);
+      EXPECT_EQ(a.end() - 1, it);
     }
 
     for (size_t i = 0; i != N; ++i) {
       EXPECT_EQ(2 * i + 1, a[i]);
+    }
+    for (size_t i = 0; i != N; ++i) {
+      EXPECT_EQ(4 * i + 1, a[N + i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -308,7 +312,8 @@ TEST(performance, insert) {
   for (size_t i = 0; i < N; ++i) {
     temp.push_back(i);
   }
-  a.insert(a.begin(), temp);
+  auto it = a.insert(a.begin(), temp);
+  EXPECT_EQ(a.begin(), it);
 }
 
 TEST(correctness, erase) {
@@ -320,7 +325,9 @@ TEST(correctness, erase) {
         a.push_back(2 * j + 1);
       }
 
-      a.erase(a.begin() + i);
+      auto it = a.erase(a.begin() + i);
+      EXPECT_EQ(a.begin() + i, it);
+
       size_t cnt = 0;
       for (size_t j = 0; j != N - 1; ++j) {
         if (j == i) {
@@ -344,7 +351,8 @@ TEST(correctness, erase_begin) {
     }
 
     for (size_t i = 0; i != N; ++i) {
-      a.erase(a.begin());
+      auto it = a.erase(a.begin());
+      EXPECT_EQ(a.begin(), it);
     }
 
     for (size_t i = 0; i != N; ++i) {
@@ -364,7 +372,8 @@ TEST(correctness, erase_end) {
     }
 
     for (size_t i = 0; i != N; ++i) {
-      a.erase(a.end() - 1);
+      auto it = a.erase(a.end() - 1);
+      EXPECT_EQ(a.end(), it);
     }
 
     for (size_t i = 0; i != N; ++i) {
@@ -383,7 +392,8 @@ TEST(correctness, erase_range_begin) {
       a.push_back(2 * i + 1);
     }
 
-    a.erase(a.begin(), a.begin() + K);
+    auto it = a.erase(a.begin(), a.begin() + K);
+    EXPECT_EQ(a.begin(), it);
 
     for (size_t i = 0; i != N - K; ++i) {
       EXPECT_EQ(2 * (i + K) + 1, a[i]);
@@ -401,7 +411,8 @@ TEST(correctness, erase_range_middle) {
       a.push_back(2 * i + 1);
     }
 
-    a.erase(a.begin() + K, a.end() - K);
+    auto it = a.erase(a.begin() + K, a.end() - K);
+    EXPECT_EQ(a.begin() + K, it);
 
     for (size_t i = 0; i != K; ++i) {
       EXPECT_EQ(2 * i + 1, a[i]);
@@ -422,7 +433,9 @@ TEST(correctness, erase_range_end) {
       a.push_back(2 * i + 1);
     }
 
-    a.erase(a.end() - K, a.end());
+    auto it = a.erase(a.end() - K, a.end());
+    EXPECT_EQ(a.end(), it);
+
     for (size_t i = 0; i != N - K; ++i) {
       EXPECT_EQ(2 * i + 1, a[i]);
     }
@@ -440,7 +453,8 @@ TEST(correctness, erase_range_all) {
       a.push_back(2 * i + 1);
     }
 
-    a.erase(a.begin(), a.end());
+    auto it = a.erase(a.begin(), a.end());
+    EXPECT_EQ(a.end(), it);
 
     EXPECT_TRUE(a.empty());
   }
@@ -455,7 +469,8 @@ TEST(correctness, erase_big_range) {
       for (size_t j = 0; j != 50000; ++j) {
         c.push_back(j);
       }
-      c.erase(c.begin() + 100, c.end() - 100);
+      auto it = c.erase(c.begin() + 100, c.end() - 100);
+      EXPECT_EQ(c.begin() + 100, it);
       c.clear();
     }
   }
