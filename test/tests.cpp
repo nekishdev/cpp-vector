@@ -157,15 +157,14 @@ TEST(correctness, superfluous_reserve) {
 
 TEST(correctness, clear) {
   const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    size_t c = a.capacity();
-    a.clear();
-    EXPECT_EQ(c, a.capacity());
+  vector<element<size_t>> a;
+  for (size_t i = 0; i != N; ++i) {
+    a.push_back(2 * i + 1);
   }
+  size_t c = a.capacity();
+  a.clear();
+  EXPECT_EQ(0, a.size());
+  EXPECT_EQ(c, a.capacity());
   element<size_t>::expect_no_instances();
 }
 
