@@ -149,8 +149,10 @@ TEST(correctness, superfluous_reserve) {
     vector<element<size_t>> a;
     a.reserve(N);
     EXPECT_GE(a.capacity(), N);
+    element<size_t>* old_data = a.data();
     a.reserve(K);
     EXPECT_GE(a.capacity(), N);
+    EXPECT_EQ(old_data, a.data());
   }
   element<size_t>::expect_no_instances();
 }
