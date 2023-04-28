@@ -143,6 +143,27 @@ TEST(correctness, capacity) {
   element<size_t>::expect_no_instances();
 }
 
+TEST(correctness, reserve) {
+  const size_t N = 100, K = 500;
+  {
+    vector<element<size_t>> a;
+    a.reserve(N);
+    EXPECT_LE(N, a.capacity());
+
+    for (size_t i = 0; i != N - 1; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    EXPECT_LE(N, a.capacity());
+
+    a.reserve(K);
+    EXPECT_LE(K, a.capacity());
+    for (size_t i = 0; i != N - 1; ++i) {
+      EXPECT_EQ(2 * i + 1, a[i]);
+    }
+  }
+  element<size_t>::expect_no_instances();
+}
+
 TEST(correctness, superfluous_reserve) {
   const size_t N = 500, K = 100;
   {
