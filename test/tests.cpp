@@ -28,7 +28,7 @@ TEST(correctness, push_back) {
     EXPECT_EQ(N, a.size());
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(i, a[i]);
+      ASSERT_EQ(i, a[i]);
     }
   }
 
@@ -47,7 +47,7 @@ TEST(correctness, push_back_from_self) {
     EXPECT_EQ(N + 1, a.size());
 
     for (size_t i = 0; i != a.size(); ++i) {
-      EXPECT_EQ(42, a[i]);
+      ASSERT_EQ(42, a[i]);
     }
   }
 
@@ -80,13 +80,13 @@ TEST(correctness, subscripting) {
   }
 
   for (size_t i = 0; i != N; ++i) {
-    EXPECT_EQ(2 * i + 1, a[i]);
+    ASSERT_EQ(2 * i + 1, a[i]);
   }
 
   const vector<size_t>& ca = a;
 
   for (size_t i = 0; i != N; ++i) {
-    EXPECT_EQ(2 * i + 1, ca[i]);
+    ASSERT_EQ(2 * i + 1, ca[i]);
   }
 }
 
@@ -101,14 +101,14 @@ TEST(correctness, data) {
   {
     element<size_t>* ptr = a.data();
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * i + 1, ptr[i]);
+      ASSERT_EQ(2 * i + 1, ptr[i]);
     }
   }
 
   {
     const element<size_t>* cptr = as_const(a).data();
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * i + 1, cptr[i]);
+      ASSERT_EQ(2 * i + 1, cptr[i]);
     }
   }
 }
@@ -158,7 +158,7 @@ TEST(correctness, reserve) {
     a.reserve(K);
     EXPECT_LE(K, a.capacity());
     for (size_t i = 0; i != N - 1; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -217,7 +217,7 @@ TEST(correctness, copy_ctor) {
 
     vector<element<size_t>> b = a;
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(i, b[i]);
+      ASSERT_EQ(i, b[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -238,7 +238,7 @@ TEST(correctness, assignment_operator) {
     EXPECT_EQ(N, b.size());
     for (size_t i = 0; i != N; ++i) {
       auto tmp = b[i];
-      EXPECT_EQ(2 * i + 1, tmp);
+      ASSERT_EQ(2 * i + 1, tmp);
     }
   }
   element<size_t>::expect_no_instances();
@@ -254,7 +254,7 @@ TEST(correctness, self_assignment) {
     a = a;
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -269,8 +269,8 @@ TEST(correctness, pop_back) {
   }
 
   for (size_t i = N; i != 0; --i) {
-    EXPECT_EQ(2 * i - 1, a.back());
-    EXPECT_EQ(i, a.size());
+    ASSERT_EQ(2 * i - 1, a.back());
+    ASSERT_EQ(i, a.size());
     a.pop_back();
   }
   EXPECT_TRUE(a.empty());
@@ -283,11 +283,11 @@ TEST(correctness, insert_begin) {
 
   for (size_t i = 0; i != N; ++i) {
     auto it = a.insert(a.begin(), i);
-    EXPECT_EQ(a.begin(), it);
+    ASSERT_EQ(a.begin(), it);
   }
 
   for (size_t i = 0; i != N; ++i) {
-    EXPECT_EQ(i, a.back());
+    ASSERT_EQ(i, a.back());
     a.pop_back();
   }
   element<size_t>::expect_no_instances();
@@ -304,16 +304,16 @@ TEST(correctness, insert_end) {
     EXPECT_EQ(N, a.size());
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(N + i, a.size());
+      ASSERT_EQ(N + i, a.size());
       auto it = a.insert(a.end(), 4 * i + 1);
-      EXPECT_EQ(a.end() - 1, it);
+      ASSERT_EQ(a.end() - 1, it);
     }
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(4 * i + 1, a[N + i]);
+      ASSERT_EQ(4 * i + 1, a[N + i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -348,14 +348,14 @@ TEST(correctness, erase) {
       }
 
       auto it = a.erase(a.begin() + i);
-      EXPECT_EQ(a.begin() + i, it);
+      ASSERT_EQ(a.begin() + i, it);
 
       size_t cnt = 0;
       for (size_t j = 0; j != N - 1; ++j) {
         if (j == i) {
           ++cnt;
         }
-        EXPECT_EQ(2 * cnt + 1, a[j]);
+        ASSERT_EQ(2 * cnt + 1, a[j]);
         ++cnt;
       }
     }
@@ -374,11 +374,11 @@ TEST(correctness, erase_begin) {
 
     for (size_t i = 0; i != N; ++i) {
       auto it = a.erase(a.begin());
-      EXPECT_EQ(a.begin(), it);
+      ASSERT_EQ(a.begin(), it);
     }
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * (i + N) + 1, a[i]);
+      ASSERT_EQ(2 * (i + N) + 1, a[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -395,11 +395,11 @@ TEST(correctness, erase_end) {
 
     for (size_t i = 0; i != N; ++i) {
       auto it = a.erase(a.end() - 1);
-      EXPECT_EQ(a.end(), it);
+      ASSERT_EQ(a.end(), it);
     }
 
     for (size_t i = 0; i != N; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -418,7 +418,7 @@ TEST(correctness, erase_range_begin) {
     EXPECT_EQ(a.begin(), it);
 
     for (size_t i = 0; i != N - K; ++i) {
-      EXPECT_EQ(2 * (i + K) + 1, a[i]);
+      ASSERT_EQ(2 * (i + K) + 1, a[i]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -437,10 +437,10 @@ TEST(correctness, erase_range_middle) {
     EXPECT_EQ(a.begin() + K, it);
 
     for (size_t i = 0; i != K; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
     for (size_t i = 0; i != K; ++i) {
-      EXPECT_EQ(2 * (i + N - K) + 1, a[i + K]);
+      ASSERT_EQ(2 * (i + N - K) + 1, a[i + K]);
     }
   }
   element<size_t>::expect_no_instances();
@@ -459,7 +459,7 @@ TEST(correctness, erase_range_end) {
     EXPECT_EQ(a.end(), it);
 
     for (size_t i = 0; i != N - K; ++i) {
-      EXPECT_EQ(2 * i + 1, a[i]);
+      ASSERT_EQ(2 * i + 1, a[i]);
     }
   }
 
@@ -492,7 +492,7 @@ TEST(correctness, erase_big_range) {
         c.push_back(j);
       }
       auto it = c.erase(c.begin() + 100, c.end() - 100);
-      EXPECT_EQ(c.begin() + 100, it);
+      ASSERT_EQ(c.begin() + 100, it);
       c.clear();
     }
   }
