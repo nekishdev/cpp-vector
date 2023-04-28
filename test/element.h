@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <ostream>
 #include <unordered_set>
 
 template <typename T>
@@ -52,6 +53,10 @@ struct element {
 
   friend bool operator!=(const element& a, const element& b) {
     return a.val != b.val;
+  }
+
+  friend std::ostream& operator<<(std::ostream& out, const element& e) {
+    return out << e.val;
   }
 
 private:
