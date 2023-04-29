@@ -323,6 +323,7 @@ TEST_F(correctness_test, clear) {
   element* old_data = a.data();
 
   a.clear();
+  element::expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
   EXPECT_EQ(old_capacity, a.capacity());
