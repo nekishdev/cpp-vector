@@ -471,7 +471,7 @@ TEST_F(correctness_test, insert_end) {
   }
 }
 
-TEST(performance_test, insert) {
+TEST_F(performance_test, insert) {
   constexpr size_t N = 10000;
 
   vector<vector<int>> a;
@@ -653,7 +653,7 @@ TEST_F(correctness_test, erase_range_all) {
   EXPECT_EQ(old_data, a.data());
 }
 
-TEST(performance_test, erase) {
+TEST_F(performance_test, erase) {
   constexpr size_t N = 100, M = 50'000, K = 100;
 
   vector<element> a;
