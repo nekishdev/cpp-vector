@@ -3,659 +3,738 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+
 template class vector<int>;
+template class vector<element>;
+template class vector<std::string>;
 
-template <typename T>
-const T& as_const(T& obj) {
-  return obj;
-}
+namespace {
 
-TEST(correctness, default_ctor) {
-  vector<element<int>> a;
-  element<int>::expect_no_instances();
+class base_test : public ::testing::Test {
+protected:
+  void SetUp() override {
+    element::instances().clear();
+    element::reset_copies();
+  }
+
+  void TearDown() override {
+    element::expect_no_instances();
+  }
+};
+
+class correctness_test : public base_test {};
+
+class performance_test : public base_test {};
+
+void expect_empty_storage(const vector<element>& a) {
+  element::expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
   EXPECT_EQ(0, a.capacity());
   EXPECT_EQ(nullptr, a.data());
 }
 
-TEST(correctness, push_back) {
-  const size_t N = 5000;
-  {
-    vector<element<size_t>> a;
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(i);
-    }
+} // namespace
 
-    EXPECT_EQ(N, a.size());
-    EXPECT_LE(N, a.capacity());
-
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(i, a[i]);
-    }
+#define EXPECT_STRONG_EXCEPTION_SAFETY(a, action, failing_position)                                                    \
+  {                                                                                                                    \
+    auto old_a = a;                                                                                                    \
+    auto old_capacity = a.capacity();                                                                                  \
+    auto old_data = a.data();                                                                                          \
+    element::set_throw_countdown(failing_position);                                                                    \
+    EXPECT_THROW(action, std::runtime_error);                                                                          \
+    EXPECT_EQ(old_a.size(), a.size());                                                                                 \
+    EXPECT_EQ(old_capacity, a.capacity());                                                                             \
+    EXPECT_EQ(old_data, a.data());                                                                                     \
+    for (size_t i = 0; i < old_a.size(); ++i) {                                                                        \
+      ASSERT_EQ(old_a[i], a[i]);                                                                                       \
+    }                                                                                                                  \
   }
 
-  element<size_t>::expect_no_instances();
+TEST_F(correctness_test, default_ctor) {
+  vector<element> a;
+  expect_empty_storage(a);
 }
 
-TEST(correctness, push_back_from_self) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    a.push_back(42);
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(a[0]);
-    }
+TEST_F(correctness_test, push_back) {
+  constexpr size_t N = 5000;
 
-    EXPECT_EQ(N + 1, a.size());
-
-    for (size_t i = 0; i != a.size(); ++i) {
-      ASSERT_EQ(42, a[i]);
-    }
-  }
-
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, push_back_reallocation) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    a.reserve(N);
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(i);
-    }
-
-    size_t copies = element<size_t>::copy_counter;
-    a.push_back(N);
-    size_t new_copies = element<size_t>::copy_counter - copies;
-    EXPECT_EQ(N + 1, new_copies);
-  }
-
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, subscripting) {
-  const size_t N = 500;
-  vector<size_t> a;
-  for (size_t i = 0; i != N; ++i) {
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
   }
 
-  for (size_t i = 0; i != N; ++i) {
+  EXPECT_EQ(N, a.size());
+  EXPECT_LE(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(correctness_test, push_back_from_self) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  a.push_back(42);
+  for (size_t i = 1; i < N; ++i) {
+    a.push_back(a[0]);
+  }
+
+  EXPECT_EQ(N, a.size());
+  EXPECT_LE(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(42, a[i]);
+  }
+}
+
+TEST_F(correctness_test, push_back_reallocation) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element::reset_copies();
+  a.push_back(N);
+  element::expect_copies(N + 1);
+}
+
+TEST_F(correctness_test, subscripting) {
+  constexpr size_t N = 500;
+
+  vector<size_t> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  for (size_t i = 0; i < N; ++i) {
     ASSERT_EQ(2 * i + 1, a[i]);
   }
 
   const vector<size_t>& ca = a;
 
-  for (size_t i = 0; i != N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     ASSERT_EQ(2 * i + 1, ca[i]);
   }
 }
 
-TEST(correctness, data) {
-  const size_t N = 500;
-  vector<element<size_t>> a;
+TEST_F(correctness_test, data) {
+  constexpr size_t N = 500;
 
-  for (size_t i = 0; i != N; ++i) {
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
   }
 
   {
-    element<size_t>* ptr = a.data();
-    for (size_t i = 0; i != N; ++i) {
+    element* ptr = a.data();
+    for (size_t i = 0; i < N; ++i) {
       ASSERT_EQ(2 * i + 1, ptr[i]);
     }
   }
 
   {
-    const element<size_t>* cptr = as_const(a).data();
-    for (size_t i = 0; i != N; ++i) {
+    const element* cptr = std::as_const(a).data();
+    for (size_t i = 0; i < N; ++i) {
       ASSERT_EQ(2 * i + 1, cptr[i]);
     }
   }
 }
 
-TEST(correctness, front_back) {
-  const size_t N = 500;
-  vector<element<size_t>> a;
-  for (size_t i = 0; i != N; ++i) {
+TEST_F(correctness_test, front_back) {
+  constexpr size_t N = 500;
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
   }
 
   EXPECT_EQ(1, a.front());
-  EXPECT_EQ(1, as_const(a).front());
+  EXPECT_EQ(1, std::as_const(a).front());
 
-  EXPECT_EQ(999, a.back());
-  EXPECT_EQ(999, as_const(a).back());
+  EXPECT_EQ(&a[0], &a.front());
+  EXPECT_EQ(&a[0], &std::as_const(a).front());
+
+  EXPECT_EQ(2 * N - 1, a.back());
+  EXPECT_EQ(2 * N - 1, std::as_const(a).back());
+
+  EXPECT_EQ(&a[N - 1], &a.back());
+  EXPECT_EQ(&a[N - 1], &std::as_const(a).back());
 }
 
-TEST(correctness, capacity) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    a.reserve(N);
-    EXPECT_LE(N, a.capacity());
-    for (size_t i = 0; i != N - 1; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    EXPECT_LE(N, a.capacity());
-    a.shrink_to_fit();
-    EXPECT_EQ(N - 1, a.capacity());
-  }
-  element<size_t>::expect_no_instances();
-}
+TEST_F(correctness_test, reserve) {
+  constexpr size_t N = 500, M = 100, K = 5000;
 
-TEST(correctness, reserve) {
-  const size_t N = 100, K = 500;
-  {
-    vector<element<size_t>> a;
-    a.reserve(N);
-    EXPECT_LE(N, a.capacity());
-
-    for (size_t i = 0; i != N - 1; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    EXPECT_LE(N, a.capacity());
-
-    a.reserve(K);
-    EXPECT_LE(K, a.capacity());
-    for (size_t i = 0; i != N - 1; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, superfluous_reserve) {
-  const size_t N = 500, K = 100;
-  {
-    vector<element<size_t>> a;
-    a.reserve(N);
-    EXPECT_GE(a.capacity(), N);
-    element<size_t>* old_data = a.data();
-    a.reserve(K);
-    EXPECT_GE(a.capacity(), N);
-    EXPECT_EQ(old_data, a.data());
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, clear) {
-  const size_t N = 500;
-  vector<element<size_t>> a;
-  for (size_t i = 0; i != N; ++i) {
-    a.push_back(2 * i + 1);
-  }
-  size_t c = a.capacity();
-  a.clear();
+  vector<element> a;
+  a.reserve(N);
   EXPECT_EQ(0, a.size());
-  EXPECT_EQ(c, a.capacity());
-  element<size_t>::expect_no_instances();
-}
+  EXPECT_EQ(N, a.capacity());
 
-TEST(correctness, superfluous_shrink_to_fit) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    a.reserve(N);
-    size_t c = a.capacity();
-    for (size_t i = 0; i != c; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    element<size_t>* old_data = a.data();
-    a.shrink_to_fit();
-    EXPECT_EQ(old_data, a.data());
+  for (size_t i = 0; i < M; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::expect_no_instances();
-}
+  EXPECT_EQ(M, a.size());
+  EXPECT_EQ(N, a.capacity());
 
-TEST(correctness, copy_ctor) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(i);
-    }
-
-    vector<element<size_t>> b = a;
-    EXPECT_EQ(a.size(), b.size());
-    EXPECT_EQ(a.size(), b.capacity());
-    EXPECT_NE(a.data(), b.data());
-
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(i, b[i]);
-    }
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
   }
-  element<size_t>::expect_no_instances();
-}
 
-TEST(correctness, assignment_operator) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
+  a.reserve(K);
+  EXPECT_EQ(M, a.size());
+  EXPECT_LE(K, a.capacity());
 
-    vector<element<size_t>> b;
-    b.push_back(42);
-
-    b = a;
-    EXPECT_EQ(a.size(), b.size());
-    EXPECT_EQ(a.size(), b.capacity());
-    EXPECT_NE(a.data(), b.data());
-
-    for (size_t i = 0; i != N; ++i) {
-      auto tmp = b[i];
-      ASSERT_EQ(2 * i + 1, tmp);
-    }
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
   }
-  element<size_t>::expect_no_instances();
 }
 
-TEST(correctness, self_assignment) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
+TEST_F(correctness_test, reserve_superfluous) {
+  constexpr size_t N = 5000, M = 100, K = 500;
 
-    size_t old_capacity = a.capacity();
-    element<size_t>* old_data = a.data();
-    a = a;
-    EXPECT_EQ(N, a.size());
-    EXPECT_EQ(old_capacity, a.capacity());
-    EXPECT_EQ(old_data, a.data());
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(0, a.size());
+  ASSERT_EQ(N, a.capacity());
 
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
+  for (size_t i = 0; i < M; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::expect_no_instances();
+  ASSERT_EQ(M, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+
+  element* old_data = a.data();
+
+  a.reserve(K);
+  EXPECT_EQ(M, a.size());
+  EXPECT_LE(N, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
 }
 
-TEST(correctness, pop_back) {
-  const size_t N = 500;
-  vector<element<size_t>> a;
+TEST_F(correctness_test, reserve_empty) {
+  vector<element> a;
+  a.reserve(0);
+  expect_empty_storage(a);
+}
 
-  for (size_t i = 0; i != N; ++i) {
+TEST_F(correctness_test, reserve_throw) {
+  constexpr size_t N = 10, K = 7;
+
+  vector<element> a;
+  a.reserve(N);
+
+  for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
   }
 
-  for (size_t i = N; i != 0; --i) {
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.reserve(N + 1), K);
+}
+
+TEST_F(correctness_test, shrink_to_fit) {
+  constexpr size_t N = 500, M = 100;
+
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(0, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  ASSERT_EQ(M, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+
+  a.shrink_to_fit();
+  EXPECT_EQ(M, a.size());
+  EXPECT_EQ(M, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(correctness_test, shrink_to_fit_superfluous) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(0, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  ASSERT_EQ(N, a.size());
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  a.shrink_to_fit();
+  EXPECT_EQ(N, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+}
+
+TEST_F(correctness_test, shrink_to_fit_empty) {
+  vector<element> a;
+  a.shrink_to_fit();
+  expect_empty_storage(a);
+}
+
+TEST_F(correctness_test, shrink_to_fit_throw) {
+  constexpr size_t N = 10, K = 7;
+
+  vector<element> a;
+  a.reserve(N * 2);
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.shrink_to_fit(), K);
+}
+
+TEST_F(correctness_test, clear) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  ASSERT_EQ(N, a.size());
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  a.clear();
+  EXPECT_TRUE(a.empty());
+  EXPECT_EQ(0, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+}
+
+TEST_F(correctness_test, copy_ctor) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  vector<element> b = a;
+  EXPECT_EQ(a.size(), b.size());
+  EXPECT_EQ(a.size(), b.capacity());
+  EXPECT_NE(a.data(), b.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, b[i]);
+  }
+}
+
+TEST_F(correctness_test, assignment_operator) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  vector<element> b;
+  b = a;
+  EXPECT_EQ(a.size(), b.size());
+  EXPECT_EQ(a.size(), b.capacity());
+  EXPECT_NE(a.data(), b.data());
+
+  vector<element> c;
+  c.push_back(42);
+  c = a;
+  EXPECT_EQ(a.size(), c.size());
+  EXPECT_EQ(a.size(), c.capacity());
+  EXPECT_NE(a.data(), c.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+    ASSERT_EQ(2 * i + 1, b[i]);
+    ASSERT_EQ(2 * i + 1, c[i]);
+  }
+}
+
+TEST_F(correctness_test, self_assignment) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  a = a;
+  EXPECT_EQ(N, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(correctness_test, empty_storage) {
+  vector<element> a;
+  expect_empty_storage(a);
+
+  vector<element> b = a;
+  expect_empty_storage(b);
+
+  a = b;
+  expect_empty_storage(a);
+}
+
+TEST_F(correctness_test, pop_back) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  for (size_t i = N; i > 0; --i) {
     ASSERT_EQ(2 * i - 1, a.back());
     ASSERT_EQ(i, a.size());
     a.pop_back();
   }
+  element::expect_no_instances();
   EXPECT_TRUE(a.empty());
-  element<size_t>::expect_no_instances();
+  EXPECT_EQ(0, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
 }
 
-TEST(correctness, insert_begin) {
-  const size_t N = 500;
-  vector<element<size_t>> a;
+TEST_F(correctness_test, insert_begin) {
+  constexpr size_t N = 500;
 
-  for (size_t i = 0; i != N; ++i) {
-    auto it = a.insert(a.begin(), i);
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.insert(a.begin(), 2 * i + 1);
     ASSERT_EQ(a.begin(), it);
+    ASSERT_EQ(i + 1, a.size());
   }
 
-  for (size_t i = 0; i != N; ++i) {
-    ASSERT_EQ(i, a.back());
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a.back());
     a.pop_back();
   }
-  element<size_t>::expect_no_instances();
+  ASSERT_TRUE(a.empty());
 }
 
-TEST(correctness, insert_end) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
+TEST_F(correctness_test, insert_end) {
+  constexpr size_t N = 500;
 
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    EXPECT_EQ(N, a.size());
+  vector<element> a;
 
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(N + i, a.size());
-      auto it = a.insert(a.end(), 4 * i + 1);
-      ASSERT_EQ(a.end() - 1, it);
-    }
-
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(4 * i + 1, a[N + i]);
-    }
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::expect_no_instances();
+  ASSERT_EQ(N, a.size());
+
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.insert(a.end(), 4 * i + 1);
+    ASSERT_EQ(a.end() - 1, it);
+    ASSERT_EQ(N + i + 1, a.size());
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(4 * i + 1, a[N + i]);
+  }
 }
 
-TEST(performance, insert) {
-  const size_t N = 10000;
-  vector<vector<int>> a;
+TEST(performance_test, insert) {
+  constexpr size_t N = 10000;
 
+  vector<vector<int>> a;
   for (size_t i = 0; i < N; ++i) {
     a.push_back(vector<int>());
     for (size_t j = 0; j < N; ++j) {
-      a.back().push_back(j);
+      a.back().push_back(2 * (i + 1) + 3 * j);
     }
   }
 
   vector<int> temp;
   for (size_t i = 0; i < N; ++i) {
-    temp.push_back(i);
+    temp.push_back(2 * i);
   }
   auto it = a.insert(a.begin(), temp);
   EXPECT_EQ(a.begin(), it);
-}
 
-TEST(correctness, erase) {
-  const size_t N = 500;
-  {
-    for (size_t i = 0; i != N; ++i) {
-      vector<element<size_t>> a;
-      for (size_t j = 0; j != N; ++j) {
-        a.push_back(2 * j + 1);
-      }
-
-      auto it = a.erase(a.begin() + i);
-      ASSERT_EQ(a.begin() + i, it);
-
-      size_t cnt = 0;
-      for (size_t j = 0; j != N - 1; ++j) {
-        if (j == i) {
-          ++cnt;
-        }
-        ASSERT_EQ(2 * cnt + 1, a[j]);
-        ++cnt;
-      }
+  for (size_t i = 0; i <= N; ++i) {
+    a.push_back(vector<int>());
+    for (size_t j = 0; j < N; ++j) {
+      a.back().push_back(2 * i + j * 3);
     }
   }
-  element<size_t>::expect_no_instances();
 }
 
-TEST(correctness, erase_begin) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
+TEST_F(correctness_test, erase) {
+  constexpr size_t N = 500;
 
-    for (size_t i = 0; i != 2 * N; ++i) {
-      a.push_back(2 * i + 1);
+  for (size_t i = 0; i < N; ++i) {
+    vector<element> a;
+    for (size_t j = 0; j < N; ++j) {
+      a.push_back(2 * j + 1);
     }
 
-    for (size_t i = 0; i != N; ++i) {
-      auto it = a.erase(a.begin());
-      ASSERT_EQ(a.begin(), it);
-    }
+    size_t old_capacity = a.capacity();
+    element* old_data = a.data();
 
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(2 * (i + N) + 1, a[i]);
+    auto it = a.erase(a.begin() + i);
+    ASSERT_EQ(a.begin() + i, it);
+    ASSERT_EQ(N - 1, a.size());
+    ASSERT_EQ(old_capacity, a.capacity());
+    ASSERT_EQ(old_data, a.data());
+
+    for (size_t j = 0; j < i; ++j) {
+      ASSERT_EQ(2 * j + 1, a[j]);
+    }
+    for (size_t j = i; j < N - 1; ++j) {
+      ASSERT_EQ(2 * (j + 1) + 1, a[j]);
     }
   }
-  element<size_t>::expect_no_instances();
 }
 
-TEST(correctness, erase_end) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
+TEST_F(correctness_test, erase_begin) {
+  constexpr size_t N = 500;
 
-    for (size_t i = 0; i != 2 * N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    for (size_t i = 0; i != N; ++i) {
-      auto it = a.erase(a.end() - 1);
-      ASSERT_EQ(a.end(), it);
-    }
-
-    for (size_t i = 0; i != N; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, erase_range_begin) {
-  const size_t N = 500, K = 100;
-  {
-    vector<element<size_t>> a;
-
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    auto it = a.erase(a.begin(), a.begin() + K);
-    EXPECT_EQ(a.begin(), it);
-
-    for (size_t i = 0; i != N - K; ++i) {
-      ASSERT_EQ(2 * (i + K) + 1, a[i]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, erase_range_middle) {
-  const size_t N = 500, K = 100;
-  {
-    vector<element<size_t>> a;
-
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    auto it = a.erase(a.begin() + K, a.end() - K);
-    EXPECT_EQ(a.begin() + K, it);
-
-    for (size_t i = 0; i != K; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-    for (size_t i = 0; i != K; ++i) {
-      ASSERT_EQ(2 * (i + N - K) + 1, a[i + K]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, erase_range_end) {
-  const size_t N = 500, K = 100;
-  {
-    vector<element<size_t>> a;
-
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    auto it = a.erase(a.end() - K, a.end());
-    EXPECT_EQ(a.end(), it);
-
-    for (size_t i = 0; i != N - K; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
+  vector<element> a;
+  for (size_t i = 0; i < N * 2; ++i) {
+    a.push_back(2 * i + 1);
   }
 
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, erase_range_all) {
-  const size_t N = 500;
-  {
-    vector<element<size_t>> a;
-
-    for (size_t i = 0; i != N; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    auto it = a.erase(a.begin(), a.end());
-    EXPECT_EQ(a.end(), it);
-
-    EXPECT_TRUE(a.empty());
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.erase(a.begin());
+    ASSERT_EQ(a.begin(), it);
   }
 
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, erase_big_range) {
-  {
-    vector<element<size_t>> c;
-    for (size_t i = 0; i != 100; ++i) {
-      for (size_t j = 0; j != 50000; ++j) {
-        c.push_back(j);
-      }
-      auto it = c.erase(c.begin() + 100, c.end() - 100);
-      ASSERT_EQ(c.begin() + 100, it);
-      c.clear();
-    }
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * (i + N) + 1, a[i]);
   }
-  element<size_t>::expect_no_instances();
 }
 
-template <typename F>
-void check_reallocation_throw_at(const F& failing_position) {
-  {
-    vector<element<size_t>> a;
-    a.reserve(10);
-    size_t n = a.capacity();
-    for (size_t i = 0; i != n; ++i) {
-      a.push_back(i);
-    }
-    element<size_t>::set_throw_countdown(failing_position(n));
-    EXPECT_THROW(a.push_back(42), std::runtime_error);
+TEST_F(correctness_test, erase_end) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N * 2; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::expect_no_instances();
+
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.erase(a.end() - 1);
+    ASSERT_EQ(a.end(), it);
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
 }
 
-TEST(correctness, reallocation_throw) {
-  check_reallocation_throw_at([](auto n) { return n - 1; });
+TEST_F(correctness_test, erase_range_begin) {
+  constexpr size_t N = 500, K = 100;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  auto it = a.erase(a.begin(), a.begin() + K);
+  EXPECT_EQ(a.begin(), it);
+  EXPECT_EQ(N - K, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < N - K; ++i) {
+    ASSERT_EQ(2 * (i + K) + 1, a[i]);
+  }
 }
 
-TEST(correctness, last_copy_at_reallocation_throw) {
-  check_reallocation_throw_at([](auto n) { return n + 1; });
+TEST_F(correctness_test, erase_range_middle) {
+  constexpr size_t N = 500, K = 100;
+
+  vector<element> a;
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  auto it = a.erase(a.begin() + K, a.end() - K);
+  EXPECT_EQ(a.begin() + K, it);
+  EXPECT_EQ(K * 2, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < K; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+  for (size_t i = 0; i < K; ++i) {
+    ASSERT_EQ(2 * (i + N - K) + 1, a[i + K]);
+  }
 }
 
-TEST(correctness, empty_storage) {
-  vector<int> a;
-  EXPECT_EQ(nullptr, a.data());
-  vector<int> b = a;
-  EXPECT_EQ(nullptr, b.data());
-  a = b;
-  EXPECT_EQ(nullptr, a.data());
+TEST_F(correctness_test, erase_range_end) {
+  constexpr size_t N = 500, K = 100;
+
+  vector<element> a;
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  auto it = a.erase(a.end() - K, a.end());
+  EXPECT_EQ(a.end(), it);
+  EXPECT_EQ(N - K, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < N - K; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
 }
 
-TEST(correctness, empty_storage_shrink_to_fit) {
-  vector<int> a;
-  a.push_back(42);
-  a.pop_back();
-  EXPECT_NE(nullptr, a.data());
-  a.shrink_to_fit();
-  EXPECT_EQ(nullptr, a.data());
+TEST_F(correctness_test, erase_range_all) {
+  constexpr size_t N = 500;
+
+  vector<element> a;
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  auto it = a.erase(a.begin(), a.end());
+  EXPECT_EQ(a.end(), it);
+
+  element::expect_no_instances();
+  EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
-  EXPECT_EQ(0, a.capacity());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+}
+
+TEST(performance_test, erase) {
+  constexpr size_t N = 100, M = 50'000, K = 100;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    for (size_t j = 0; j < M; ++j) {
+      a.push_back(j);
+    }
+    auto it = a.erase(a.begin() + K, a.end() - K);
+    ASSERT_EQ(a.begin() + K, it);
+    ASSERT_EQ(K * 2, a.size());
+    a.clear();
+  }
+}
+
+TEST_F(correctness_test, reallocation_throw) {
+  constexpr size_t N = 10;
+
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.push_back(42), N - 1);
+}
+
+TEST_F(correctness_test, last_copy_at_reallocation_throw) {
+  constexpr size_t N = 10;
+
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.push_back(42), N + 1);
 }
 
 // This test actually checks memory leak in pair with @valgrind
-TEST(correctness, copy_throw) {
-  vector<element<size_t>> a;
-  a.reserve(10);
-  size_t n = a.capacity();
-  for (size_t i = 0; i != n; ++i) {
-    a.push_back(i);
+TEST_F(correctness_test, copy_throw) {
+  constexpr size_t N = 10, K = 7;
+
+  vector<element> a;
+  a.reserve(N);
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::set_throw_countdown(7);
-  EXPECT_THROW({ vector<element<size_t>> b(a); }, std::runtime_error);
+
+  EXPECT_STRONG_EXCEPTION_SAFETY(
+      a, { vector<element> b(a); }, K);
 }
 
-TEST(correctness, assign_throw) {
-  {
-    vector<element<size_t>> a;
-    a.reserve(10);
-    size_t n = a.capacity();
-    for (size_t i = 0; i != n; ++i) {
-      a.push_back(2 * i + 1);
-    }
-    vector<element<size_t>> b;
-    b.push_back(0);
+TEST_F(correctness_test, assign_throw) {
+  constexpr size_t N = 10, K = 7;
 
-    element<size_t>* old_data = b.data();
-    element<size_t>::set_throw_countdown(n - 1);
-    EXPECT_THROW({ b = std::as_const(a); }, std::runtime_error);
-    EXPECT_EQ(1, b.size());
-    EXPECT_EQ(1, b.capacity());
-    EXPECT_EQ(old_data, b.data());
+  vector<element> a;
+  a.reserve(N);
 
-    for (size_t i = 0; i != n; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
   }
-  element<size_t>::expect_no_instances();
+
+  vector<element> b;
+  b.push_back(0);
+
+  EXPECT_STRONG_EXCEPTION_SAFETY(
+      a, { b = std::as_const(a); }, K);
 }
 
-TEST(correctness, reserve_throw) {
-  {
-    vector<element<size_t>> a;
-    a.reserve(10);
-    size_t n = a.capacity();
-    for (size_t i = 0; i != n; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    element<size_t>* old_data = a.data();
-    element<size_t>::set_throw_countdown(7);
-    EXPECT_THROW({ a.reserve(11); }, std::runtime_error);
-    EXPECT_EQ(n, a.size());
-    EXPECT_EQ(n, a.capacity());
-    EXPECT_EQ(old_data, a.data());
-
-    for (size_t i = 0; i != n; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, shrink_to_fit_throw) {
-  {
-    vector<element<size_t>> a;
-    a.reserve(20);
-    size_t n = 10;
-    for (size_t i = 0; i != n; ++i) {
-      a.push_back(2 * i + 1);
-    }
-
-    element<size_t>* old_data = a.data();
-    element<size_t>::set_throw_countdown(7);
-    EXPECT_THROW({ a.shrink_to_fit(); }, std::runtime_error);
-    EXPECT_EQ(n, a.size());
-    EXPECT_EQ(20, a.capacity());
-    EXPECT_EQ(old_data, a.data());
-
-    for (size_t i = 0; i != n; ++i) {
-      ASSERT_EQ(2 * i + 1, a[i]);
-    }
-  }
-  element<size_t>::expect_no_instances();
-}
-
-TEST(correctness, iter_types) {
-  using el_t = element<size_t>;
-  using vec_t = vector<el_t>;
-  bool test1 = std::is_same<el_t*, typename vec_t::iterator>::value;
-  bool test2 = std::is_same<const el_t*, typename vec_t::const_iterator>::value;
-  EXPECT_TRUE(test1);
-  EXPECT_TRUE(test2);
-}
-
-// Expect no extra allocation
-TEST(correctness, ctor_alloc) {
-  vector<element<size_t>> a;
-  a.reserve(10);
-  a.push_back(5);
-
-  auto b = a;
-  EXPECT_EQ(1, b.capacity());
+TEST_F(correctness_test, member_aliases) {
+  EXPECT_TRUE((std::is_same<element, vector<element>::value_type>::value));
+  EXPECT_TRUE((std::is_same<element&, vector<element>::reference>::value));
+  EXPECT_TRUE((std::is_same<const element&, vector<element>::const_reference>::value));
+  EXPECT_TRUE((std::is_same<element*, vector<element>::pointer>::value));
+  EXPECT_TRUE((std::is_same<const element*, vector<element>::const_pointer>::value));
+  EXPECT_TRUE((std::is_same<element*, vector<element>::iterator>::value));
+  EXPECT_TRUE((std::is_same<const element*, vector<element>::const_iterator>::value));
 }

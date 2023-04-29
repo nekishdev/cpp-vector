@@ -5,13 +5,13 @@
 #include <ostream>
 #include <unordered_set>
 
-template <typename T>
-struct element {
+class element {
+public:
   element() {
     add_instance();
   }
 
-  element(const T& val) : val(val) {
+  element(const size_t& val) : val(val) {
     add_instance();
   }
 
@@ -38,9 +38,15 @@ struct element {
   }
 
   static void expect_no_instances() {
-    if (!instances().empty()) {
-      FAIL() << "Not all instances are destroyed";
-    }
+    EXPECT_TRUE(instances().empty()) << "Not all instances are destroyed";
+  }
+
+  static void reset_copies() {
+    copy_counter = 0;
+  }
+
+  static void expect_copies(size_t expected_count) {
+    ASSERT_EQ(expected_count, copy_counter);
   }
 
   static void set_throw_countdown(size_t val) {
@@ -93,10 +99,9 @@ private:
     ++copy_counter;
   }
 
-public:
-  inline static size_t copy_counter = 0;
-
 private:
-  T val;
+  size_t val;
+
+  inline static size_t copy_counter = 0;
   inline static size_t throw_countdown = 0;
 };
