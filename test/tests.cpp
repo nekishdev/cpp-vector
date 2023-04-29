@@ -15,6 +15,8 @@ TEST(correctness, default_ctor) {
   element<int>::expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
+  EXPECT_EQ(0, a.capacity());
+  EXPECT_EQ(nullptr, a.data());
 }
 
 TEST(correctness, push_back) {
@@ -26,6 +28,7 @@ TEST(correctness, push_back) {
     }
 
     EXPECT_EQ(N, a.size());
+    EXPECT_LE(N, a.capacity());
 
     for (size_t i = 0; i != N; ++i) {
       ASSERT_EQ(i, a[i]);
@@ -216,6 +219,10 @@ TEST(correctness, copy_ctor) {
     }
 
     vector<element<size_t>> b = a;
+    EXPECT_EQ(a.size(), b.size());
+    EXPECT_EQ(a.size(), b.capacity());
+    EXPECT_NE(a.data(), b.data());
+
     for (size_t i = 0; i != N; ++i) {
       ASSERT_EQ(i, b[i]);
     }
@@ -235,7 +242,10 @@ TEST(correctness, assignment_operator) {
     b.push_back(42);
 
     b = a;
-    EXPECT_EQ(N, b.size());
+    EXPECT_EQ(a.size(), b.size());
+    EXPECT_EQ(a.size(), b.capacity());
+    EXPECT_NE(a.data(), b.data());
+
     for (size_t i = 0; i != N; ++i) {
       auto tmp = b[i];
       ASSERT_EQ(2 * i + 1, tmp);
@@ -251,7 +261,13 @@ TEST(correctness, self_assignment) {
     for (size_t i = 0; i != N; ++i) {
       a.push_back(2 * i + 1);
     }
+
+    size_t old_capacity = a.capacity();
+    element<size_t>* old_data = a.data();
     a = a;
+    EXPECT_EQ(N, a.size());
+    EXPECT_EQ(old_capacity, a.capacity());
+    EXPECT_EQ(old_data, a.data());
 
     for (size_t i = 0; i != N; ++i) {
       ASSERT_EQ(2 * i + 1, a[i]);
@@ -560,14 +576,67 @@ TEST(correctness, assign_throw) {
     a.reserve(10);
     size_t n = a.capacity();
     for (size_t i = 0; i != n; ++i) {
-      a.push_back(i);
+      a.push_back(2 * i + 1);
     }
     vector<element<size_t>> b;
     b.push_back(0);
+
+    element<size_t>* old_data = b.data();
     element<size_t>::set_throw_countdown(n - 1);
-    EXPECT_THROW({ b = a; }, std::runtime_error);
+    EXPECT_THROW({ b = std::as_const(a); }, std::runtime_error);
+    EXPECT_EQ(1, b.size());
     EXPECT_EQ(1, b.capacity());
-    EXPECT_EQ(10, a.capacity());
+    EXPECT_EQ(old_data, b.data());
+
+    for (size_t i = 0; i != n; ++i) {
+      ASSERT_EQ(2 * i + 1, a[i]);
+    }
+  }
+  element<size_t>::expect_no_instances();
+}
+
+TEST(correctness, reserve_throw) {
+  {
+    vector<element<size_t>> a;
+    a.reserve(10);
+    size_t n = a.capacity();
+    for (size_t i = 0; i != n; ++i) {
+      a.push_back(2 * i + 1);
+    }
+
+    element<size_t>* old_data = a.data();
+    element<size_t>::set_throw_countdown(7);
+    EXPECT_THROW({ a.reserve(11); }, std::runtime_error);
+    EXPECT_EQ(n, a.size());
+    EXPECT_EQ(n, a.capacity());
+    EXPECT_EQ(old_data, a.data());
+
+    for (size_t i = 0; i != n; ++i) {
+      ASSERT_EQ(2 * i + 1, a[i]);
+    }
+  }
+  element<size_t>::expect_no_instances();
+}
+
+TEST(correctness, shrink_to_fit_throw) {
+  {
+    vector<element<size_t>> a;
+    a.reserve(20);
+    size_t n = 10;
+    for (size_t i = 0; i != n; ++i) {
+      a.push_back(2 * i + 1);
+    }
+
+    element<size_t>* old_data = a.data();
+    element<size_t>::set_throw_countdown(7);
+    EXPECT_THROW({ a.shrink_to_fit(); }, std::runtime_error);
+    EXPECT_EQ(n, a.size());
+    EXPECT_EQ(20, a.capacity());
+    EXPECT_EQ(old_data, a.data());
+
+    for (size_t i = 0; i != n; ++i) {
+      ASSERT_EQ(2 * i + 1, a[i]);
+    }
   }
   element<size_t>::expect_no_instances();
 }
