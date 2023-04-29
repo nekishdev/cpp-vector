@@ -107,7 +107,7 @@ TEST_F(correctness_test, push_back_reallocation) {
 TEST_F(correctness_test, subscripting) {
   constexpr size_t N = 500;
 
-  vector<size_t> a;
+  vector<element> a;
   for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
   }
@@ -116,7 +116,7 @@ TEST_F(correctness_test, subscripting) {
     ASSERT_EQ(2 * i + 1, a[i]);
   }
 
-  const vector<size_t>& ca = a;
+  const vector<element>& ca = a;
 
   for (size_t i = 0; i < N; ++i) {
     ASSERT_EQ(2 * i + 1, ca[i]);
