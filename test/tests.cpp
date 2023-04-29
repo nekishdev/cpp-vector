@@ -186,7 +186,7 @@ TEST_F(correctness_test, reserve) {
 
   a.reserve(K);
   EXPECT_EQ(M, a.size());
-  EXPECT_LE(K, a.capacity());
+  EXPECT_EQ(K, a.capacity());
 
   for (size_t i = 0; i < M; ++i) {
     ASSERT_EQ(2 * i + 1, a[i]);
@@ -215,7 +215,7 @@ TEST_F(correctness_test, reserve_superfluous) {
 
   a.reserve(K);
   EXPECT_EQ(M, a.size());
-  EXPECT_LE(N, a.capacity());
+  EXPECT_EQ(N, a.capacity());
   EXPECT_EQ(old_data, a.data());
 
   for (size_t i = 0; i < M; ++i) {
