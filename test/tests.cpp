@@ -484,15 +484,14 @@ TEST_F(performance_test, insert) {
 
   vector<int> temp;
   for (size_t i = 0; i < N; ++i) {
-    temp.push_back(2 * i);
+    temp.push_back(3 * i);
   }
   auto it = a.insert(a.begin(), temp);
   EXPECT_EQ(a.begin(), it);
 
   for (size_t i = 0; i <= N; ++i) {
-    a.push_back(vector<int>());
     for (size_t j = 0; j < N; ++j) {
-      a.back().push_back(2 * i + j * 3);
+      ASSERT_EQ(2 * i + 3 * j, a[i][j]);
     }
   }
 }
@@ -654,9 +653,9 @@ TEST_F(correctness_test, erase_range_all) {
 }
 
 TEST_F(performance_test, erase) {
-  constexpr size_t N = 100, M = 50'000, K = 100;
+  constexpr size_t N = 10'000, M = 50'000, K = 100;
 
-  vector<element> a;
+  vector<int> a;
   for (size_t i = 0; i < N; ++i) {
     for (size_t j = 0; j < M; ++j) {
       a.push_back(j);
