@@ -11,7 +11,7 @@ public:
     add_instance();
   }
 
-  element(const size_t& val) : val(val) {
+  element(size_t val) : val(val) {
     add_instance();
   }
 
