@@ -24,7 +24,13 @@ public:
   vector(const vector& other);
 
   // O(N) strong
+  vector(vector&& other);
+
+  // O(N) strong
   vector& operator=(const vector& other);
+
+  // O(N) strong
+  vector& operator=(vector&& other);
 
   // O(N) nothrow
   ~vector() noexcept;
@@ -58,6 +64,9 @@ public:
 
   // O(1)* strong
   void push_back(const T& value);
+
+  // O(1)* strong
+  void push_back(T&& value);
 
   // O(1) nothrow
   void pop_back();
@@ -94,6 +103,9 @@ public:
 
   // O(N) strong
   iterator insert(const_iterator pos, const T& value);
+
+  // O(N) strong
+  iterator insert(const_iterator pos, T&& value);
 
   // O(N) nothrow(swap)
   iterator erase(const_iterator pos);
