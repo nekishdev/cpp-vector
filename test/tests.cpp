@@ -1,9 +1,11 @@
 #include "element.h"
+#include "fault-injection.h"
 #include "ordered-element.h"
 #include "vector.h"
 
 #include <gtest/gtest.h>
 
+#include <sstream>
 #include <string>
 
 template class vector<int>;
@@ -13,47 +15,84 @@ template class vector<ordered_element>;
 
 namespace {
 
+template <class Actual, class Expected>
+void expect_eq(const Actual& actual, const Expected& expected) {
+  fault_injection_disable dg;
+
+  EXPECT_EQ(expected.size(), actual.size());
+
+  if (!std::equal(expected.begin(), expected.end(), actual.begin(), actual.end())) {
+    std::stringstream out;
+    out << '{';
+
+    bool add_comma = false;
+    for (const auto& e : expected) {
+      if (add_comma) {
+        out << ", ";
+      }
+      out << e;
+      add_comma = true;
+    }
+
+    out << "} != {";
+
+    add_comma = false;
+    for (const auto& e : actual) {
+      if (add_comma) {
+        out << ", ";
+      }
+      out << e;
+      add_comma = true;
+    }
+
+    out << "}\n";
+
+    ADD_FAILURE() << out.rdbuf();
+  }
+}
+
+template <typename C>
+class strong_exception_safety_guard {
+public:
+  explicit strong_exception_safety_guard(const C& c) noexcept
+      : ref(c)
+      , expected((fault_injection_disable{}, c)) {}
+
+  strong_exception_safety_guard(const strong_exception_safety_guard&) = delete;
+
+  ~strong_exception_safety_guard() {
+    if (std::uncaught_exceptions() > 0) {
+      expect_eq(expected, ref);
+    }
+  }
+
+private:
+  const C& ref;
+  C expected;
+};
+
 class base_test : public ::testing::Test {
 protected:
   void SetUp() override {
-    element::instances().clear();
     ordered_element::insertion_order().clear();
-    element::reset_copies();
   }
 
-  void TearDown() override {
-    element::expect_no_instances();
+  void expect_empty_storage(const vector<element>& a) {
+    instances_guard.expect_no_instances();
+    EXPECT_TRUE(a.empty());
+    EXPECT_EQ(0, a.size());
+    EXPECT_EQ(0, a.capacity());
+    EXPECT_EQ(nullptr, a.data());
   }
+
+  element::no_new_instances_guard instances_guard;
 };
 
 class correctness_test : public base_test {};
 
 class performance_test : public base_test {};
 
-void expect_empty_storage(const vector<element>& a) {
-  element::expect_no_instances();
-  EXPECT_TRUE(a.empty());
-  EXPECT_EQ(0, a.size());
-  EXPECT_EQ(0, a.capacity());
-  EXPECT_EQ(nullptr, a.data());
-}
-
 } // namespace
-
-#define EXPECT_STRONG_EXCEPTION_SAFETY(a, action, failing_position)                                                    \
-  {                                                                                                                    \
-    auto old_a = a;                                                                                                    \
-    auto old_capacity = a.capacity();                                                                                  \
-    auto old_data = a.data();                                                                                          \
-    element::set_throw_countdown(failing_position);                                                                    \
-    EXPECT_THROW(action, std::runtime_error);                                                                          \
-    EXPECT_EQ(old_a.size(), a.size());                                                                                 \
-    EXPECT_EQ(old_capacity, a.capacity());                                                                             \
-    EXPECT_EQ(old_data, a.data());                                                                                     \
-    for (size_t i = 0; i < old_a.size(); ++i) {                                                                        \
-      ASSERT_EQ(old_a[i], a[i]);                                                                                       \
-    }                                                                                                                  \
-  }
 
 TEST_F(correctness_test, default_ctor) {
   vector<element> a;
@@ -102,7 +141,7 @@ TEST_F(correctness_test, push_back_reallocation) {
     a.push_back(2 * i + 1);
   }
 
-  element::reset_copies();
+  element::reset_counters();
   a.push_back(N);
   element::expect_copies(N + 1);
 }
@@ -233,16 +272,21 @@ TEST_F(correctness_test, reserve_empty) {
 }
 
 TEST_F(correctness_test, reserve_throw) {
-  constexpr size_t N = 10, K = 7;
+  constexpr size_t N = 10;
 
-  vector<element> a;
-  a.reserve(N);
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
 
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.reserve(N + 1), K);
+    strong_exception_safety_guard sg(a);
+    a.reserve(N + 1);
+  });
 }
 
 TEST_F(correctness_test, shrink_to_fit) {
@@ -301,16 +345,21 @@ TEST_F(correctness_test, shrink_to_fit_empty) {
 }
 
 TEST_F(correctness_test, shrink_to_fit_throw) {
-  constexpr size_t N = 10, K = 7;
+  constexpr size_t N = 10;
 
-  vector<element> a;
-  a.reserve(N * 2);
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N * 2);
 
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.shrink_to_fit(), K);
+    strong_exception_safety_guard sg(a);
+    a.shrink_to_fit();
+  });
 }
 
 TEST_F(correctness_test, clear) {
@@ -326,7 +375,7 @@ TEST_F(correctness_test, clear) {
   element* old_data = a.data();
 
   a.clear();
-  element::expect_no_instances();
+  instances_guard.expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
   EXPECT_EQ(old_capacity, a.capacity());
@@ -427,7 +476,7 @@ TEST_F(correctness_test, pop_back) {
     ASSERT_EQ(i, a.size());
     a.pop_back();
   }
-  element::expect_no_instances();
+  instances_guard.expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
   EXPECT_EQ(old_capacity, a.capacity());
@@ -657,7 +706,7 @@ TEST_F(correctness_test, erase_range_all) {
   auto it = a.erase(a.begin(), a.end());
   EXPECT_EQ(a.end(), it);
 
-  element::expect_no_instances();
+  instances_guard.expect_no_instances();
   EXPECT_TRUE(a.empty());
   EXPECT_EQ(0, a.size());
   EXPECT_EQ(old_capacity, a.capacity());
@@ -680,62 +729,63 @@ TEST_F(performance_test, erase) {
 }
 
 TEST_F(correctness_test, reallocation_throw) {
-  constexpr size_t N = 10;
+  static constexpr size_t N = 10;
 
-  vector<element> a;
-  a.reserve(N);
-  ASSERT_EQ(N, a.capacity());
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
+    ASSERT_EQ(N, a.capacity());
 
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.push_back(42), N - 1);
-}
-
-TEST_F(correctness_test, last_copy_at_reallocation_throw) {
-  constexpr size_t N = 10;
-
-  vector<element> a;
-  a.reserve(N);
-  ASSERT_EQ(N, a.capacity());
-
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
-
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, a.push_back(42), N + 1);
+    strong_exception_safety_guard sg(a);
+    a.push_back(42);
+  });
 }
 
 // This test actually checks memory leak in pair with @valgrind
 TEST_F(correctness_test, copy_throw) {
-  constexpr size_t N = 10, K = 7;
+  static constexpr size_t N = 10;
 
-  vector<element> a;
-  a.reserve(N);
-  ASSERT_EQ(N, a.capacity());
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
+    ASSERT_EQ(N, a.capacity());
 
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, { vector<element> b(a); }, K);
+    strong_exception_safety_guard sg(a);
+    [[maybe_unused]] vector<element> b(a);
+  });
 }
 
 TEST_F(correctness_test, assign_throw) {
-  constexpr size_t N = 10, K = 7;
+  static constexpr size_t N = 10;
 
-  vector<element> a;
-  a.reserve(N);
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
 
-  for (size_t i = 0; i < N; ++i) {
-    a.push_back(2 * i + 1);
-  }
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
 
-  vector<element> b;
-  b.push_back(0);
+    vector<element> b;
+    b.push_back(0);
+    dg.reset();
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(a, { b = std::as_const(a); }, K);
+    strong_exception_safety_guard sg(a);
+    b = std::as_const(a);
+  });
 }
 
 TEST_F(correctness_test, member_aliases) {

@@ -1,109 +1,47 @@
 #pragma once
 
-#include <gtest/gtest.h>
+#include <set>
 
-#include <ostream>
-#include <unordered_set>
+struct element {
+  struct no_new_instances_guard;
 
-class element {
-public:
-  element() {
-    add_instance();
-  }
+  element() = delete;
+  element(int data);
+  element(const element& other);
+  element(element&& other);
+  ~element();
 
-  element(size_t val)
-      : val(val) {
-    add_instance();
-  }
+  element& operator=(const element& c);
+  element& operator=(element&& c);
+  operator int() const;
 
-  element(const element& rhs)
-      : val(rhs.val) {
-    copy();
-    add_instance();
-  }
-
-  element& operator=(const element& rhs) {
-    assert_exists();
-    rhs.assert_exists();
-    copy();
-    val = rhs.val;
-    return *this;
-  }
-
-  ~element() {
-    delete_instance();
-  }
-
-  static std::unordered_set<const element*>& instances() {
-    static std::unordered_set<const element*> instances;
-    return instances;
-  }
-
-  static void expect_no_instances() {
-    EXPECT_TRUE(instances().empty()) << "Not all instances are destroyed";
-  }
-
-  static void reset_copies() {
-    copy_counter = 0;
-  }
-
-  static void expect_copies(size_t expected_count) {
-    ASSERT_EQ(expected_count, copy_counter);
-  }
-
-  static void set_throw_countdown(size_t val) {
-    throw_countdown = val;
-  }
-
-  friend bool operator==(const element& a, const element& b) {
-    return a.val == b.val;
-  }
-
-  friend bool operator!=(const element& a, const element& b) {
-    return a.val != b.val;
-  }
-
-  friend std::ostream& operator<<(std::ostream& out, const element& e) {
-    return out << e.val;
-  }
+  static void reset_counters();
+  static void expect_copies(size_t expected_count);
+  static void expect_moves(size_t expected_count);
 
 private:
-  void add_instance() {
-    auto p = instances().insert(this);
-    if (!p.second) {
-      FAIL() << "A new object is created at the address " << static_cast<void*>(this)
-             << " while the previous object at this address was not destroyed";
-    }
-  }
-
-  void delete_instance() {
-    size_t erased = instances().erase(this);
-    if (erased != 1) {
-      FAIL() << "Attempt of destroying non-existing object at address " << static_cast<void*>(this);
-    }
-  }
-
-  void assert_exists() const {
-    const std::unordered_set<const element*>& inst = instances();
-    bool exists = inst.find(this) != inst.end();
-    if (!exists) {
-      FAIL() << "Accessing an non-existsing object at address " << static_cast<const void*>(this);
-    }
-  }
-
-  void copy() {
-    if (throw_countdown != 0) {
-      --throw_countdown;
-      if (throw_countdown == 0) {
-        throw std::runtime_error("copy failed");
-      }
-    }
-    ++copy_counter;
-  }
+  void add_instance();
+  void delete_instance();
+  void assert_exists() const;
 
 private:
-  size_t val;
+  int data;
 
+  static std::set<const element*> instances;
   inline static size_t copy_counter = 0;
-  inline static size_t throw_countdown = 0;
+  inline static size_t move_counter = 0;
+};
+
+struct element::no_new_instances_guard {
+  no_new_instances_guard();
+
+  no_new_instances_guard(const no_new_instances_guard&) = delete;
+  no_new_instances_guard& operator=(const no_new_instances_guard&) = delete;
+
+  ~no_new_instances_guard();
+
+  void expect_no_instances();
+
+private:
+  std::set<const element*> old_instances;
 };
