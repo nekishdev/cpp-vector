@@ -16,7 +16,7 @@ element::element(const element& other)
 }
 
 element::element(element&& other)
-    : data(other.data) {
+    : data(std::exchange(other.data, -1)) {
   add_instance();
   ++move_counter;
 }
@@ -39,7 +39,7 @@ element& element::operator=(element&& c) {
   fault_injection_point();
 
   ++move_counter;
-  data = c.data;
+  data = std::exchange(c.data, -1);
   return *this;
 }
 
@@ -55,12 +55,12 @@ void element::reset_counters() {
   move_counter = 0;
 }
 
-void element::expect_copies(size_t expected_count) {
-  ASSERT_EQ(expected_count, copy_counter);
+size_t element::get_copy_counter() {
+  return copy_counter;
 }
 
-void element::expect_moves(size_t expected_count) {
-  ASSERT_EQ(expected_count, move_counter);
+size_t element::get_move_counter() {
+  return move_counter;
 }
 
 void element::add_instance() {

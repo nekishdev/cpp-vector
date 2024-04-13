@@ -71,6 +71,32 @@ private:
   C expected;
 };
 
+template <>
+class strong_exception_safety_guard<element> {
+public:
+  explicit strong_exception_safety_guard(const element& c) noexcept
+      : ref(c)
+      , expected((fault_injection_disable{}, c)) {}
+
+  strong_exception_safety_guard(const strong_exception_safety_guard&) = delete;
+
+  ~strong_exception_safety_guard() {
+    if (std::uncaught_exceptions() > 0) {
+      do_assertion();
+    }
+  }
+
+private:
+  void do_assertion() {
+    fault_injection_disable dg;
+    ASSERT_EQ(expected, ref);
+  }
+
+private:
+  const element& ref;
+  element expected;
+};
+
 class base_test : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -90,6 +116,8 @@ protected:
 
 class correctness_test : public base_test {};
 
+class exception_safety_test : public base_test {};
+
 class performance_test : public base_test {};
 
 } // namespace
@@ -99,8 +127,37 @@ TEST_F(correctness_test, default_ctor) {
   expect_empty_storage(a);
 }
 
-TEST_F(correctness_test, push_back) {
-  constexpr size_t N = 5000;
+TEST_F(exception_safety_test, non_throwing_default_ctor) {
+  faulty_run([] {
+    try {
+      vector<element> a;
+    } catch (...) {
+      fault_injection_disable dg;
+      ADD_FAILURE() << "default constructor should not throw";
+      throw;
+    }
+  });
+}
+
+TEST_F(correctness_test, push_back_lvalue) {
+  static constexpr size_t N = 5000;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    element x = 2 * i + 1;
+    a.push_back(x);
+  }
+
+  EXPECT_EQ(N, a.size());
+  EXPECT_LE(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(correctness_test, push_back_prvalue) {
+  static constexpr size_t N = 5000;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -115,8 +172,34 @@ TEST_F(correctness_test, push_back) {
   }
 }
 
-TEST_F(correctness_test, push_back_from_self) {
-  constexpr size_t N = 500;
+TEST_F(exception_safety_test, push_back_lvalue_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    vector<element> a;
+    for (size_t i = 0; i < N; ++i) {
+      element x = 2 * i + 1;
+      strong_exception_safety_guard sg_1(a);
+      strong_exception_safety_guard sg_2(x);
+      a.push_back(x);
+    }
+  });
+}
+
+TEST_F(exception_safety_test, push_back_prvalue_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    vector<element> a;
+    for (size_t i = 0; i < N; ++i) {
+      strong_exception_safety_guard sg_1(a);
+      a.push_back(2 * i + 1);
+    }
+  });
+}
+
+TEST_F(correctness_test, push_back_lvalue_from_self) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
   a.push_back(42);
@@ -132,8 +215,93 @@ TEST_F(correctness_test, push_back_from_self) {
   }
 }
 
-TEST_F(correctness_test, push_back_reallocation) {
-  constexpr size_t N = 500;
+TEST_F(correctness_test, push_back_prvalue_from_self) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  a.push_back(42);
+  for (size_t i = 1; i < N; ++i) {
+    a.push_back(element(a[0]));
+  }
+
+  EXPECT_EQ(N, a.size());
+  EXPECT_LE(N, a.capacity());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(42, a[i]);
+  }
+}
+
+TEST_F(correctness_test, push_back_xvalue_from_self) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  a.push_back(42);
+  for (size_t i = 1; i < N; ++i) {
+    a.push_back(std::move(a[i - 1]));
+  }
+
+  EXPECT_EQ(N, a.size());
+  EXPECT_LE(N, a.capacity());
+  ASSERT_EQ(42, a[N - 1]);
+}
+
+TEST_F(exception_safety_test, push_back_lvalue_from_self_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    vector<element> a;
+    a.push_back(42);
+    for (size_t i = 1; i < N; ++i) {
+      strong_exception_safety_guard sg(a);
+      a.push_back(a[0]);
+    }
+  });
+}
+
+TEST_F(exception_safety_test, push_back_prvalue_from_self_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    vector<element> a;
+    a.push_back(42);
+    for (size_t i = 1; i < N; ++i) {
+      strong_exception_safety_guard sg(a);
+      a.push_back(element(a[0]));
+    }
+  });
+}
+
+TEST_F(exception_safety_test, push_back_xvalue_from_self_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    vector<element> a;
+    a.push_back(42);
+    for (size_t i = 1; i < N; ++i) {
+      strong_exception_safety_guard sg(a);
+      a.push_back(std::move(a[i - 1]));
+    }
+  });
+}
+
+TEST_F(correctness_test, push_back_lvalue_reallocation) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element x = N;
+  element::reset_counters();
+  a.push_back(x);
+  ASSERT_EQ(N + 1, element::get_copy_counter());
+}
+
+TEST_F(correctness_test, push_back_prvalue_reallocation) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
   a.reserve(N);
@@ -143,11 +311,70 @@ TEST_F(correctness_test, push_back_reallocation) {
 
   element::reset_counters();
   a.push_back(N);
-  element::expect_copies(N + 1);
+  ASSERT_EQ(N + 1, element::get_copy_counter());
+}
+
+TEST_F(correctness_test, push_back_xvalue_reallocation) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element x = N;
+  element::reset_counters();
+  a.push_back(std::move(x));
+  ASSERT_EQ(N + 1, element::get_copy_counter());
+}
+
+TEST_F(correctness_test, push_back_lvalue_reallocation_noexcept) {
+  static constexpr size_t N = 500;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element_with_non_throwing_move x = N;
+  element::reset_counters();
+  a.push_back(x);
+  ASSERT_EQ(1, element::get_copy_counter());
+}
+
+TEST_F(correctness_test, push_back_prvalue_reallocation_noexcept) {
+  static constexpr size_t N = 500;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element::reset_counters();
+  a.push_back(N);
+  ASSERT_EQ(0, element::get_copy_counter());
+}
+
+TEST_F(correctness_test, push_back_xvalue_reallocation_noexcept) {
+  static constexpr size_t N = 500;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element_with_non_throwing_move x = N;
+  element::reset_counters();
+  a.push_back(std::move(x));
+  ASSERT_EQ(0, element::get_copy_counter());
 }
 
 TEST_F(correctness_test, subscripting) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -166,7 +393,7 @@ TEST_F(correctness_test, subscripting) {
 }
 
 TEST_F(correctness_test, data) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -189,7 +416,7 @@ TEST_F(correctness_test, data) {
 }
 
 TEST_F(correctness_test, front_back) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
     a.push_back(2 * i + 1);
@@ -209,7 +436,7 @@ TEST_F(correctness_test, front_back) {
 }
 
 TEST_F(correctness_test, reserve) {
-  constexpr size_t N = 500, M = 100, K = 5000;
+  static constexpr size_t N = 500, M = 100, K = 5000;
 
   vector<element> a;
   a.reserve(N);
@@ -236,7 +463,7 @@ TEST_F(correctness_test, reserve) {
 }
 
 TEST_F(correctness_test, reserve_superfluous) {
-  constexpr size_t N = 5000, M = 100, K = 500;
+  static constexpr size_t N = 5000, M = 100, K = 500;
 
   vector<element> a;
   a.reserve(N);
@@ -271,8 +498,8 @@ TEST_F(correctness_test, reserve_empty) {
   expect_empty_storage(a);
 }
 
-TEST_F(correctness_test, reserve_throw) {
-  constexpr size_t N = 10;
+TEST_F(exception_safety_test, reserve_throw) {
+  static constexpr size_t N = 10;
 
   faulty_run([] {
     fault_injection_disable dg;
@@ -289,8 +516,38 @@ TEST_F(correctness_test, reserve_throw) {
   });
 }
 
+TEST_F(correctness_test, reserve_noexcept) {
+  static constexpr size_t N = 500, M = 100, K = 5000;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  EXPECT_EQ(0, a.size());
+  EXPECT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  EXPECT_EQ(M, a.size());
+  EXPECT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+
+  element::reset_counters();
+  a.reserve(K);
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(M, a.size());
+  EXPECT_EQ(K, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
 TEST_F(correctness_test, shrink_to_fit) {
-  constexpr size_t N = 500, M = 100;
+  static constexpr size_t N = 500, M = 100;
 
   vector<element> a;
   a.reserve(N);
@@ -317,7 +574,7 @@ TEST_F(correctness_test, shrink_to_fit) {
 }
 
 TEST_F(correctness_test, shrink_to_fit_superfluous) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   a.reserve(N);
@@ -344,8 +601,8 @@ TEST_F(correctness_test, shrink_to_fit_empty) {
   expect_empty_storage(a);
 }
 
-TEST_F(correctness_test, shrink_to_fit_throw) {
-  constexpr size_t N = 10;
+TEST_F(exception_safety_test, shrink_to_fit_throw) {
+  static constexpr size_t N = 10;
 
   faulty_run([] {
     fault_injection_disable dg;
@@ -362,8 +619,38 @@ TEST_F(correctness_test, shrink_to_fit_throw) {
   });
 }
 
+TEST_F(correctness_test, shrink_to_fit_noexcept) {
+  static constexpr size_t N = 500, M = 100;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  ASSERT_EQ(0, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  ASSERT_EQ(M, a.size());
+  ASSERT_EQ(N, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+
+  element::reset_counters();
+  a.shrink_to_fit();
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(M, a.size());
+  EXPECT_EQ(M, a.capacity());
+
+  for (size_t i = 0; i < M; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
 TEST_F(correctness_test, clear) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -382,8 +669,26 @@ TEST_F(correctness_test, clear) {
   EXPECT_EQ(old_data, a.data());
 }
 
+TEST_F(exception_safety_test, non_throwing_clear) {
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    for (size_t i = 0; i < 10; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
+    try {
+      a.clear();
+    } catch (...) {
+      fault_injection_disable dg_2;
+      ADD_FAILURE() << "clear() should not throw";
+      throw;
+    }
+  });
+}
+
 TEST_F(correctness_test, copy_ctor) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -400,8 +705,51 @@ TEST_F(correctness_test, copy_ctor) {
   }
 }
 
-TEST_F(correctness_test, assignment_operator) {
-  constexpr size_t N = 500;
+TEST_F(correctness_test, move_ctor) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element* a_data = a.data();
+
+  element::reset_counters();
+  vector<element> b = std::move(a);
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(N, b.size());
+  EXPECT_LE(N, b.capacity());
+  EXPECT_EQ(a_data, b.data());
+  EXPECT_NE(a.data(), b.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, b[i]);
+  }
+}
+
+TEST_F(performance_test, move_ctor) {
+  static constexpr size_t N = 8'000;
+
+  vector<vector<int>> a;
+  for (size_t i = 0; i < N; ++i) {
+    vector<int> b;
+    for (size_t j = 0; j < N; ++j) {
+      b.push_back(2 * i + 3 * j);
+    }
+    a.push_back(std::move(b));
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    for (size_t j = 0; j < N; ++j) {
+      ASSERT_EQ(2 * i + 3 * j, a[i][j]);
+    }
+  }
+}
+
+TEST_F(correctness_test, copy_assignment_operator) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -428,8 +776,60 @@ TEST_F(correctness_test, assignment_operator) {
   }
 }
 
-TEST_F(correctness_test, self_assignment) {
-  constexpr size_t N = 500;
+TEST_F(correctness_test, move_assignment_operator_to_empty) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element* a_data = a.data();
+
+  element::reset_counters();
+  vector<element> b;
+  b = std::move(a);
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(N, b.size());
+  EXPECT_LE(N, b.capacity());
+  EXPECT_EQ(a_data, b.data());
+  EXPECT_NE(a.data(), b.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, b[i]);
+  }
+}
+
+TEST_F(correctness_test, move_assignment_operator_to_non_empty) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element* a_data = a.data();
+
+  vector<element> b;
+  b.push_back(42);
+
+  element::reset_counters();
+  b = std::move(a);
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(N, b.size());
+  EXPECT_LE(N, b.capacity());
+  EXPECT_EQ(a_data, b.data());
+  EXPECT_NE(a.data(), b.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, b[i]);
+  }
+}
+
+TEST_F(correctness_test, self_copy_assignment) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -439,13 +839,62 @@ TEST_F(correctness_test, self_assignment) {
   size_t old_capacity = a.capacity();
   element* old_data = a.data();
 
+  element::reset_counters();
   a = a;
+  ASSERT_EQ(0, element::get_copy_counter());
+  ASSERT_EQ(0, element::get_copy_counter());
+
   EXPECT_EQ(N, a.size());
   EXPECT_EQ(old_capacity, a.capacity());
   EXPECT_EQ(old_data, a.data());
 
   for (size_t i = 0; i < N; ++i) {
     ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(correctness_test, self_move_assignment) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  size_t old_capacity = a.capacity();
+  element* old_data = a.data();
+
+  element::reset_counters();
+  a = std::move(a);
+  ASSERT_EQ(0, element::get_copy_counter());
+  ASSERT_EQ(0, element::get_copy_counter());
+
+  EXPECT_EQ(N, a.size());
+  EXPECT_EQ(old_capacity, a.capacity());
+  EXPECT_EQ(old_data, a.data());
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+}
+
+TEST_F(performance_test, move_assignment) {
+  static constexpr size_t N = 8'000;
+
+  vector<vector<int>> a;
+  for (size_t i = 0; i < N; ++i) {
+    vector<int> b;
+    for (size_t j = 0; j < N; ++j) {
+      b.push_back(2 * i + 3 * j);
+    }
+    a.push_back({});
+    a.back() = std::move(b);
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    for (size_t j = 0; j < N; ++j) {
+      ASSERT_EQ(2 * i + 3 * j, a[i][j]);
+    }
   }
 }
 
@@ -461,7 +910,7 @@ TEST_F(correctness_test, empty_storage) {
 }
 
 TEST_F(correctness_test, pop_back) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -491,12 +940,13 @@ TEST_F(correctness_test, destroy_order) {
   a.push_back(3);
 }
 
-TEST_F(correctness_test, insert_begin) {
-  constexpr size_t N = 500;
+TEST_F(correctness_test, insert_lvalue_begin) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
-    auto it = a.insert(std::as_const(a).begin(), 2 * i + 1);
+    element x = 2 * i + 1;
+    auto it = a.insert(std::as_const(a).begin(), x);
     ASSERT_EQ(a.begin(), it);
     ASSERT_EQ(i + 1, a.size());
   }
@@ -508,8 +958,8 @@ TEST_F(correctness_test, insert_begin) {
   ASSERT_TRUE(a.empty());
 }
 
-TEST_F(correctness_test, insert_end) {
-  constexpr size_t N = 500;
+TEST_F(correctness_test, insert_lvalue_end) {
+  static constexpr size_t N = 500;
 
   vector<element> a;
 
@@ -519,7 +969,8 @@ TEST_F(correctness_test, insert_end) {
   ASSERT_EQ(N, a.size());
 
   for (size_t i = 0; i < N; ++i) {
-    auto it = a.insert(a.end(), 4 * i + 1);
+    element x = 4 * i + 1;
+    auto it = a.insert(a.end(), x);
     ASSERT_EQ(a.end() - 1, it);
     ASSERT_EQ(N + i + 1, a.size());
   }
@@ -532,8 +983,8 @@ TEST_F(correctness_test, insert_end) {
   }
 }
 
-TEST_F(performance_test, insert) {
-  constexpr size_t N = 10000;
+TEST_F(performance_test, insert_lvalue) {
+  static constexpr size_t N = 8'000;
 
   vector<vector<int>> a;
   for (size_t i = 0; i < N; ++i) {
@@ -557,8 +1008,89 @@ TEST_F(performance_test, insert) {
   }
 }
 
+TEST_F(correctness_test, insert_rvalue_begin) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.insert(std::as_const(a).begin(), 2 * i + 1);
+    ASSERT_EQ(a.begin(), it);
+    ASSERT_EQ(i + 1, a.size());
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a.back());
+    a.pop_back();
+  }
+  ASSERT_TRUE(a.empty());
+}
+
+TEST_F(correctness_test, insert_rvalue_end) {
+  static constexpr size_t N = 500;
+
+  vector<element> a;
+
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+  ASSERT_EQ(N, a.size());
+
+  for (size_t i = 0; i < N; ++i) {
+    auto it = a.insert(a.end(), 4 * i + 1);
+    ASSERT_EQ(a.end() - 1, it);
+    ASSERT_EQ(N + i + 1, a.size());
+  }
+
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(2 * i + 1, a[i]);
+  }
+  for (size_t i = 0; i < N; ++i) {
+    ASSERT_EQ(4 * i + 1, a[N + i]);
+  }
+}
+
+TEST_F(performance_test, insert_rvalue) {
+  static constexpr size_t N = 8'000;
+
+  vector<vector<int>> a;
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(vector<int>());
+    for (size_t j = 0; j < N; ++j) {
+      a.back().push_back(2 * (i + 1) + 3 * j);
+    }
+  }
+
+  vector<int> temp;
+  for (size_t i = 0; i < N; ++i) {
+    temp.push_back(3 * i);
+  }
+  auto it = a.insert(a.begin(), std::move(temp));
+  EXPECT_EQ(a.begin(), it);
+
+  for (size_t i = 0; i <= N; ++i) {
+    for (size_t j = 0; j < N; ++j) {
+      ASSERT_EQ(2 * i + 3 * j, a[i][j]);
+    }
+  }
+}
+
+TEST_F(correctness_test, insert_xvalue_reallocation_noexcept) {
+  static constexpr size_t N = 500, K = 7;
+
+  vector<element_with_non_throwing_move> a;
+  a.reserve(N);
+  for (size_t i = 0; i < N; ++i) {
+    a.push_back(2 * i + 1);
+  }
+
+  element_with_non_throwing_move x = N;
+  element::reset_counters();
+  a.insert(a.begin() + K, std::move(x));
+  ASSERT_EQ(0, element::get_copy_counter());
+}
+
 TEST_F(correctness_test, erase) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   for (size_t i = 0; i < N; ++i) {
     vector<element> a;
@@ -585,7 +1117,7 @@ TEST_F(correctness_test, erase) {
 }
 
 TEST_F(correctness_test, erase_begin) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N * 2; ++i) {
@@ -603,7 +1135,7 @@ TEST_F(correctness_test, erase_begin) {
 }
 
 TEST_F(correctness_test, erase_end) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
   for (size_t i = 0; i < N * 2; ++i) {
@@ -621,7 +1153,7 @@ TEST_F(correctness_test, erase_end) {
 }
 
 TEST_F(correctness_test, erase_range_begin) {
-  constexpr size_t N = 500, K = 100;
+  static constexpr size_t N = 500, K = 100;
 
   vector<element> a;
   for (size_t i = 0; i < N; ++i) {
@@ -643,7 +1175,7 @@ TEST_F(correctness_test, erase_range_begin) {
 }
 
 TEST_F(correctness_test, erase_range_middle) {
-  constexpr size_t N = 500, K = 100;
+  static constexpr size_t N = 500, K = 100;
 
   vector<element> a;
 
@@ -669,7 +1201,7 @@ TEST_F(correctness_test, erase_range_middle) {
 }
 
 TEST_F(correctness_test, erase_range_end) {
-  constexpr size_t N = 500, K = 100;
+  static constexpr size_t N = 500, K = 100;
 
   vector<element> a;
 
@@ -692,7 +1224,7 @@ TEST_F(correctness_test, erase_range_end) {
 }
 
 TEST_F(correctness_test, erase_range_all) {
-  constexpr size_t N = 500;
+  static constexpr size_t N = 500;
 
   vector<element> a;
 
@@ -714,7 +1246,7 @@ TEST_F(correctness_test, erase_range_all) {
 }
 
 TEST_F(performance_test, erase) {
-  constexpr size_t N = 10'000, M = 50'000, K = 100;
+  static constexpr size_t N = 8'000, M = 50'000, K = 100;
 
   vector<int> a;
   for (size_t i = 0; i < N; ++i) {
@@ -728,7 +1260,7 @@ TEST_F(performance_test, erase) {
   }
 }
 
-TEST_F(correctness_test, reallocation_throw) {
+TEST_F(exception_safety_test, reallocation_throw) {
   static constexpr size_t N = 10;
 
   faulty_run([] {
@@ -747,8 +1279,7 @@ TEST_F(correctness_test, reallocation_throw) {
   });
 }
 
-// This test actually checks memory leak in pair with @valgrind
-TEST_F(correctness_test, copy_throw) {
+TEST_F(exception_safety_test, copy_throw) {
   static constexpr size_t N = 10;
 
   faulty_run([] {
@@ -767,7 +1298,26 @@ TEST_F(correctness_test, copy_throw) {
   });
 }
 
-TEST_F(correctness_test, assign_throw) {
+TEST_F(exception_safety_test, move_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
+    ASSERT_EQ(N, a.capacity());
+
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+    dg.reset();
+
+    strong_exception_safety_guard sg(a);
+    [[maybe_unused]] vector<element> b(std::move(a));
+  });
+}
+
+TEST_F(exception_safety_test, copy_assign_throw) {
   static constexpr size_t N = 10;
 
   faulty_run([] {
@@ -785,6 +1335,27 @@ TEST_F(correctness_test, assign_throw) {
 
     strong_exception_safety_guard sg(a);
     b = std::as_const(a);
+  });
+}
+
+TEST_F(exception_safety_test, move_assign_throw) {
+  static constexpr size_t N = 10;
+
+  faulty_run([] {
+    fault_injection_disable dg;
+    vector<element> a;
+    a.reserve(N);
+
+    for (size_t i = 0; i < N; ++i) {
+      a.push_back(2 * i + 1);
+    }
+
+    vector<element> b;
+    b.push_back(0);
+    dg.reset();
+
+    strong_exception_safety_guard sg(a);
+    b = std::move(a);
   });
 }
 

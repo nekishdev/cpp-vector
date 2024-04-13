@@ -16,8 +16,8 @@ struct element {
   operator int() const;
 
   static void reset_counters();
-  static void expect_copies(size_t expected_count);
-  static void expect_moves(size_t expected_count);
+  static size_t get_copy_counter();
+  static size_t get_move_counter();
 
 private:
   void add_instance();
@@ -44,4 +44,14 @@ struct element::no_new_instances_guard {
 
 private:
   std::set<const element*> old_instances;
+};
+
+struct element_with_non_throwing_move : element {
+  using element::element;
+
+  element_with_non_throwing_move(const element_with_non_throwing_move& other) noexcept = default;
+  element_with_non_throwing_move(element_with_non_throwing_move&& other) noexcept = default;
+
+  element_with_non_throwing_move& operator=(const element_with_non_throwing_move& other) = default;
+  element_with_non_throwing_move& operator=(element_with_non_throwing_move&& other) noexcept = default;
 };
