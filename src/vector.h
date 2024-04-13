@@ -23,13 +23,13 @@ public:
   // O(N) strong
   vector(const vector& other);
 
-  // O(N) strong
+  // O(1) strong
   vector(vector&& other);
 
   // O(N) strong
   vector& operator=(const vector& other);
 
-  // O(N) strong
+  // O(1) strong
   vector& operator=(vector&& other);
 
   // O(N) nothrow
