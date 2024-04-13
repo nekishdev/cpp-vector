@@ -127,7 +127,8 @@ void faulty_run(const std::function<void()>& f) {
   context = nullptr;
 }
 
-fault_injection_disable::fault_injection_disable() : was_disabled(disabled) {
+fault_injection_disable::fault_injection_disable()
+    : was_disabled(disabled) {
   disabled = true;
 }
 
