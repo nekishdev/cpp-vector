@@ -11,11 +11,13 @@ public:
     add_instance();
   }
 
-  element(size_t val) : val(val) {
+  element(size_t val)
+      : val(val) {
     add_instance();
   }
 
-  element(const element& rhs) : val(rhs.val) {
+  element(const element& rhs)
+      : val(rhs.val) {
     copy();
     add_instance();
   }

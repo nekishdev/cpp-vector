@@ -17,49 +17,87 @@ public:
   using const_iterator = const_pointer;
 
 public:
-  vector() noexcept;                                         // O(1) nothrow
-  vector(const vector& other);                               // O(N) strong
-  vector& operator=(const vector& other);                    // O(N) strong
+  // O(1) nothrow
+  vector() noexcept;
 
-  ~vector() noexcept;                                        // O(N) nothrow
+  // O(N) strong
+  vector(const vector& other);
 
-  reference operator[](size_t index);                        // O(1) nothrow
-  const_reference operator[](size_t index) const;            // O(1) nothrow
+  // O(N) strong
+  vector& operator=(const vector& other);
 
-  pointer data() noexcept;                                   // O(1) nothrow
-  const_pointer data() const noexcept;                       // O(1) nothrow
+  // O(N) nothrow
+  ~vector() noexcept;
 
-  size_t size() const noexcept;                              // O(1) nothrow
+  // O(1) nothrow
+  reference operator[](size_t index);
 
-  reference front();                                         // O(1) nothrow
-  const_reference front() const;                             // O(1) nothrow
+  // O(1) nothrow
+  const_reference operator[](size_t index) const;
 
-  reference back();                                          // O(1) nothrow
-  const_reference back() const;                              // O(1) nothrow
+  // O(1) nothrow
+  pointer data() noexcept;
 
-  void push_back(const T& value);                            // O(1)* strong
+  // O(1) nothrow
+  const_pointer data() const noexcept;
 
-  void pop_back();                                           // O(1) nothrow
+  // O(1) nothrow
+  size_t size() const noexcept;
 
-  bool empty() const noexcept;                               // O(1) nothrow
+  // O(1) nothrow
+  reference front();
 
-  size_t capacity() const noexcept;                          // O(1) nothrow
-  void reserve(size_t new_capacity);                         // O(N) strong
-  void shrink_to_fit();                                      // O(N) strong
+  // O(1) nothrow
+  const_reference front() const;
 
-  void clear() noexcept;                                     // O(N) nothrow
+  // O(1) nothrow
+  reference back();
 
-  void swap(vector& other) noexcept;                         // O(1) nothrow
+  // O(1) nothrow
+  const_reference back() const;
 
-  iterator begin() noexcept;                                 // O(1) nothrow
-  iterator end() noexcept;                                   // O(1) nothrow
+  // O(1)* strong
+  void push_back(const T& value);
 
-  const_iterator begin() const noexcept;                     // O(1) nothrow
-  const_iterator end() const noexcept;                       // O(1) nothrow
+  // O(1) nothrow
+  void pop_back();
 
-  iterator insert(const_iterator pos, const T& value);       // O(N) strong
+  // O(1) nothrow
+  bool empty() const noexcept;
 
-  iterator erase(const_iterator pos);                        // O(N) nothrow(swap)
+  // O(1) nothrow
+  size_t capacity() const noexcept;
 
-  iterator erase(const_iterator first, const_iterator last); // O(N) nothrow(swap)
+  // O(N) strong
+  void reserve(size_t new_capacity);
+
+  // O(N) strong
+  void shrink_to_fit();
+
+  // O(N) nothrow
+  void clear() noexcept;
+
+  // O(1) nothrow
+  void swap(vector& other) noexcept;
+
+  // O(1) nothrow
+  iterator begin() noexcept;
+
+  // O(1) nothrow
+  iterator end() noexcept;
+
+  // O(1) nothrow
+  const_iterator begin() const noexcept;
+
+  // O(1) nothrow
+  const_iterator end() const noexcept;
+
+  // O(N) strong
+  iterator insert(const_iterator pos, const T& value);
+
+  // O(N) nothrow(swap)
+  iterator erase(const_iterator pos);
+
+  // O(N) nothrow(swap)
+  iterator erase(const_iterator first, const_iterator last);
 };

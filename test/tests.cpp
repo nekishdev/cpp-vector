@@ -719,8 +719,7 @@ TEST_F(correctness_test, copy_throw) {
     a.push_back(2 * i + 1);
   }
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(
-      a, { vector<element> b(a); }, K);
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, { vector<element> b(a); }, K);
 }
 
 TEST_F(correctness_test, assign_throw) {
@@ -736,8 +735,7 @@ TEST_F(correctness_test, assign_throw) {
   vector<element> b;
   b.push_back(0);
 
-  EXPECT_STRONG_EXCEPTION_SAFETY(
-      a, { b = std::as_const(a); }, K);
+  EXPECT_STRONG_EXCEPTION_SAFETY(a, { b = std::as_const(a); }, K);
 }
 
 TEST_F(correctness_test, member_aliases) {
